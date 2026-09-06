@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>贪吃蛇 · AI不计局数</title>
+    <style>
+        :root { --bg-body: #1a2634; --bg-container: #263340; --bg-score: #1e2a36; --text: #b7d0e8; --highlight: #f0c674; --canvas: #1e2a36; }
+        [data-theme="light"] { --bg-body: #e8ecf1; --bg-container: #fff; --bg-score: #f2f6fc; --text: #1a2634; --highlight: #b45f06; --canvas: #fafcff; }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { background: var(--bg-body); display:flex; justify-content:center; align-items:center; min-height:100vh; font-family:'Segoe UI',sans-serif; transition:background .3s; }
+        .container { background: var(--bg-container); padding:30px 40px; border-radius:36px; box-shadow:0 20px 40px rgba(0,0,0,0.15); text-align:center; transition:background .3s; }
+        .score-row { display:flex; justify-content:space-around; color:var(--text); font-size:16px; margin-bottom:15px; gap:8px; flex-wrap:wrap; }
+        .score-item { background:var(--bg-score); padding:4px 18px; border-radius:60px; color:var(--highlight); font-weight:700; font-size:20px; display:flex; align-items:center; gap:6px; transition:background .3s; }
+        .score-item .label { font-weight:400; font-size:14px; color:var(--text); }
+        canvas { display:block; margin:0 auto; background:var(--canvas); border-radius:18px; box-shadow:inset 0 0 0 1px #3a4a5a,0 12px 24px rgba(0,0,0,0.5); width:400px; height:400px; transition:background .3s; }
+        .status-area { margin-top:18px; display:flex; flex-wrap:wrap; justify-content:center; gap:10px; align-items:center; }
+        #statusMsg { color:var(--text); background:var(--bg-score); padding:6px 22px; border-radius:60px; min-width:130px; }
+        .btn-group { display:flex; gap:8px; flex-wrap:wrap; }
+        .btn { background:#3f5b78; border:none; color:#fff; font-weight:600; font-size:14px; padding:7px 20px; border-radius:60px; cursor:pointer; box-shadow:0 4px 0 #1f3140; transition:.1s; }
+        .btn:hover { transform:translateY(-2px); box-shadow:0 6px 0 #1f3140; }
+        .btn:active { transform:translateY(4px); box-shadow:0 0; }
+        .btn-ai { background:#5a7a4a; box-shadow:0 4px 0 #2a3d1f; }
+        .btn-ai:hover { background:#6f965a; }
+        .btn-reset { background:#8a4a4a; box-shadow:0 4px 0 #4a2a2a; }
+        .btn-reset:hover { background:#a85a5a; }
+        .btn-theme { background:#3f5b78; box-shadow:0 4px 0 #1f3140; font-size:18px; padding:5px 16px; }
+        .hint { color:#6c859e; font-size:13px; margin-top:14px; }
+        @media (max-width:560px) { .container { padding:18px 16px; } canvas { width:300px; height:300px; } }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="score-row">
+        <span class="score-item"><span class="label">🍎</span><span id="scoreDisplay">0</span></span>
+        <span class="score-item"><span class="label">🏆</span><span id="highScoreDisplay">0</span></span>
+        <span class="score-item"><span class="label">📊</span><span id="gameCountDisplay">0</span></span>
+    </div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div class="status-area">
+        <div id="statusMsg">▶ 按方向键开始</div>
+        <div class="btn-group">
+            <button class="btn" id="restartBtn">🔄 新一局</button>
+            <button class="btn btn-ai" id="aiBtn">🤖 AI演示</button>
+            <button class="btn btn-reset" id="resetStatsBtn">🗑️ 重置</button>
+            <button class="btn btn-theme" id="themeToggle">🌙</button>
+        </div>
+    </div>
+    <div class="hint">⬆⬇⬅➡ 手动 ・ 空格重开 ・ AI不计局数</div>
+</div>
+
+<script>
+(function() {
+    'use strict';
+    const GRID_SIZE = 20, CELL = 20, TICK = 130, AI_TARGET = 15;
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreSpan = document.getElementById('scoreDisplay');
+    const highSpan = document.getElementById('highScoreDisplay');
+    const countSpan = document.getElementById('gameCountDisplay');
+    const statusMsg = document.getElementById('statusMsg');
+
+    let snake, direction, nextDir, food, score, highScore, gameCount;
+    let gameOver, winFlag, started, interval;
+    let aiMode = false, aiFoodCount = 0;
+
+    // ===== 统计 =====
+    function loadStats() {
+        highScore = parseInt(localStorage.getItem('snake_high') || '0');
+        gameCount = parseInt(localStorage.getItem('snake_count') || '0');
+        highSpan.textContent = highScore;
+        countSpan.textContent = gameCount;
+    }
+    function saveStats() {
+        localStorage.setItem('snake_high', String(highScore));
+        localStorage.setItem('snake_count', String(gameCount));
+    }
+    function incrementGameCount() {
+        gameCount++;
+        countSpan.textContent = gameCount;
+        saveStats();
+    }
+    function updateHighScore() {
+        if (score > highScore) {
+            highScore = score;
+            highSpan.textContent = highScore;
+            saveStats();
+        }
+    }
+    function resetAllStats() {
+        highScore = 0; gameCount = 0;
+        highSpan.textContent = '0'; countSpan.textContent = '0';
+        saveStats();
+    }
+
+    // ===== 主题 =====
+    let isLight = false;
+    function toggleTheme() {
+        isLight = !isLight;
+        document.documentElement.setAttribute('data-theme', isLight ? 'light' : 'dark');
+        document.getElementById('themeToggle').textContent = isLight ? '☀️' : '🌙';
+        localStorage.setItem('snake_theme', isLight ? 'light' : 'dark');
+    }
+    if (localStorage.getItem('snake_theme') === 'light') toggleTheme();
+
+    // ===== 食物 =====
+    function generateFood() {
+        const total = GRID_SIZE * GRID_SIZE;
+        if (snake.length >= total) { winFlag = true; gameOver = true; statusMsg.textContent = '🎉 完美通关！'; return; }
+        const set = new Set(snake.map(s => s.x+','+s.y));
+        let free = [];
+        for (let i=0; i<GRID_SIZE; i++) for (let j=0; j<GRID_SIZE; j++) if (!set.has(i+','+j)) free.push({x:i,y:j});
+        if (free.length === 0) { winFlag = true; gameOver = true; statusMsg.textContent = '🎉 完美通关！'; return; }
+        food = free[Math.floor(Math.random() * free.length)];
+    }
+
+    // ===== AI 决策 =====
+    function getAIDir() {
+        const head = snake[0];
+        const dirs = [{dx:1,dy:0,dir:'RIGHT'},{dx:-1,dy:0,dir:'LEFT'},{dx:0,dy:-1,dir:'UP'},{dx:0,dy:1,dir:'DOWN'}];
+        const safe = dirs.filter(d => {
+            const nx = head.x + d.dx, ny = head.y + d.dy;
+            if (nx<0 || nx>=GRID_SIZE || ny<0 || ny>=GRID_SIZE) return false;
+            for (let i=1; i<snake.length-1; i++) if (snake[i].x===nx && snake[i].y===ny) return false;
+            return true;
+        });
+        if (safe.length === 0) {
+            for (let d of dirs) {
+                const nx = head.x + d.dx, ny = head.y + d.dy;
+                if (nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) return d.dir;
+            }
+            return direction;
+        }
+        safe.sort((a,b) => {
+            const da = Math.abs(head.x + a.dx - food.x) + Math.abs(head.y + a.dy - food.y);
+            const db = Math.abs(head.x + b.dx - food.x) + Math.abs(head.y + b.dy - food.y);
+            return da - db;
+        });
+        return safe[0].dir;
+    }
+
+    // ===== 移动 =====
+    function moveSnake() {
+        if (gameOver || !started) return;
+
+        if (aiMode) {
+            const aiDir = getAIDir();
+            const opp = {'UP':'DOWN','DOWN':'UP','LEFT':'RIGHT','RIGHT':'LEFT'};
+            if (opp[aiDir] !== direction) nextDir = aiDir;
+        }
+
+        const opp = {'UP':'DOWN','DOWN':'UP','LEFT':'RIGHT','RIGHT':'LEFT'};
+        if (nextDir && opp[nextDir] !== direction) direction = nextDir;
+
+        const head = snake[0];
+        let newHead = { ...head };
+        switch (direction) {
+            case 'RIGHT': newHead.x++; break;
+            case 'LEFT':  newHead.x--; break;
+            case 'UP':    newHead.y--; break;
+            case 'DOWN':  newHead.y++; break;
+            default: return;
+        }
+
+        const eating = (newHead.x === food.x && newHead.y === food.y);
+        let newSnake = [newHead, ...snake];
+        if (!eating) newSnake.pop();
+
+        let collide = false;
+        if (newHead.x<0 || newHead.x>=GRID_SIZE || newHead.y<0 || newHead.y>=GRID_SIZE) collide = true;
+        if (!collide) {
+            for (let i=1; i<newSnake.length; i++) {
+                if (newSnake[i].x === newHead.x && newSnake[i].y === newHead.y) { collide = true; break; }
+            }
+        }
+        if (collide) {
+            gameOver = true;
+            clearInterval(interval); interval = null;
+            statusMsg.textContent = '💀 游戏结束！';
+            if (aiMode) { aiMode = false; statusMsg.textContent = '💀 AI失败，点击AI重试'; }
+            drawCanvas();
+            if (!aiMode) updateHighScore();
+            scoreSpan.textContent = score;
+            return;
+        }
+
+        snake = newSnake;
+
+        if (eating) {
+            score++;
+            scoreSpan.textContent = score;
+            if (!aiMode) updateHighScore();
+
+            if (aiMode) {
+                aiFoodCount++;
+                statusMsg.textContent = `🤖 AI ${aiFoodCount}/${AI_TARGET}`;
+                if (aiFoodCount >= AI_TARGET) {
+                    clearInterval(interval); interval = null;
+                    statusMsg.textContent = `🎉 AI演示完成！`;
+                    aiMode = false;
+                    // 🚀 关键修改：AI结束后直接重置游戏，不增加局数
+                    initGame();
+                    return;
+                }
+            }
+            generateFood();
+            if (gameOver) { drawCanvas(); return; }
+        }
+        drawCanvas();
+    }
+
+    // ===== 绘制 =====
+    function drawCanvas() {
+        ctx.clearRect(0, 0, 400, 400);
+        const style = getComputedStyle(document.documentElement);
+        const grid = style.getPropertyValue('--grid-color')?.trim() || '#2b3b4a';
+        ctx.strokeStyle = grid; ctx.lineWidth = 0.5;
+        for (let i=0; i<=GRID_SIZE; i++) {
+            ctx.beginPath(); ctx.moveTo(i*CELL,0); ctx.lineTo(i*CELL,400); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0,i*CELL); ctx.lineTo(400,i*CELL); ctx.stroke();
+        }
+        ctx.shadowColor = '#f0c674'; ctx.shadowBlur = 10;
+        ctx.fillStyle = '#f2594b';
+        ctx.beginPath(); ctx.arc(food.x*CELL+10, food.y*CELL+10, 8, 0, 2*Math.PI); ctx.fill();
+        ctx.shadowBlur = 0;
+        snake.forEach((s,i) => {
+            ctx.fillStyle = i===0 ? '#6fcf97' : '#27ae60';
+            ctx.shadowColor = i===0 ? '#6fcf97' : '#1e8449';
+            ctx.shadowBlur = i===0 ? 12 : 6;
+            const x=s.x*CELL, y=s.y*CELL;
+            ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+            if (i===0) {
+                ctx.shadowBlur = 0; ctx.fillStyle = '#0e2a1a';
+                let ex1,ey1,ex2,ey2;
+                switch(direction) {
+                    case 'RIGHT': ex1=x+12,ey1=y+4; ex2=x+12,ey2=y+12; break;
+                    case 'LEFT':  ex1=x+4,ey1=y+4; ex2=x+4,ey2=y+12; break;
+                    case 'UP':    ex1=x+4,ey1=y+4; ex2=x+12,ey2=y+4; break;
+                    case 'DOWN':  ex1=x+4,ey1=y+12; ex2=x+12,ey2=y+12; break;
+                    default: ex1=x+12,ey1=y+4; ex2=x+12,ey2=y+12;
+                }
+                ctx.beginPath(); ctx.arc(ex1,ey1,2.5,0,2*Math.PI); ctx.fill();
+                ctx.beginPath(); ctx.arc(ex2,ey2,2.5,0,2*Math.PI); ctx.fill();
+            }
+        });
+        ctx.shadowBlur = 0;
+        if (gameOver) {
+            ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,400,400);
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 30px Arial';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(winFlag ? '🏆 通关' : '💀 结束', 200, 200);
+        }
+    }
+
+    // ===== 初始化 =====
+    function initGame() {
+        snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+        direction = 'RIGHT'; nextDir = 'RIGHT';
+        score = 0; gameOver = false; winFlag = false; started = false;
+        aiMode = false; aiFoodCount = 0;
+        if (interval) clearInterval(interval); interval = null;
+        loadStats();
+        generateFood();
+        scoreSpan.textContent = '0';
+        statusMsg.textContent = '▶ 按方向键开始';
+        drawCanvas();
+    }
+
+    // ===== 新一局（手动） =====
+    function restartGame() {
+        if (interval) clearInterval(interval);
+        // 只有手动玩过（得分>0或已结束）才计局数
+        if (score > 0 || gameOver) {
+            incrementGameCount();
+        }
+        snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+        direction = 'RIGHT'; nextDir = 'RIGHT';
+        score = 0; gameOver = false; winFlag = false; started = false;
+        aiMode = false; aiFoodCount = 0;
+        scoreSpan.textContent = '0';
+        generateFood();
+        statusMsg.textContent = '▶ 按方向键开始';
+        drawCanvas();
+    }
+
+    // ===== AI演示（不计局数） =====
+    function startAI() {
+        if (interval) clearInterval(interval);
+        // 不增加局数
+        snake = [{x:10,y:10},{x:9,y:10},{x:8,y:10}];
+        direction = 'RIGHT'; nextDir = 'RIGHT';
+        score = 0; gameOver = false; winFlag = false; started = true;
+        aiMode = true; aiFoodCount = 0;
+        scoreSpan.textContent = '0';
+        generateFood();
+        statusMsg.textContent = `🤖 AI 0/${AI_TARGET}`;
+        drawCanvas();
+        interval = setInterval(moveSnake, TICK);
+    }
+
+    // ===== 重置全部统计 =====
+    function resetStats() {
+        if (interval) clearInterval(interval);
+        resetAllStats();
+        initGame();
+        statusMsg.textContent = '🗑️ 已重置';
+    }
+
+    // ===== 键盘 =====
+    function keyHandler(e) {
+        const k = e.key;
+        if (k.startsWith('Arrow') || k === ' ') e.preventDefault();
+        if (k === ' ') { restartGame(); return; }
+        if (aiMode) return;
+        let newDir = null;
+        if (k === 'ArrowUp') newDir = 'UP';
+        else if (k === 'ArrowDown') newDir = 'DOWN';
+        else if (k === 'ArrowLeft') newDir = 'LEFT';
+        else if (k === 'ArrowRight') newDir = 'RIGHT';
+        else return;
+
+        if (!started && !gameOver) {
+            started = true;
+            statusMsg.textContent = '▶ 游戏中...';
+            direction = newDir; nextDir = newDir;
+            interval = setInterval(moveSnake, TICK);
+            return;
+        }
+        if (gameOver) return;
+        const opp = {'UP':'DOWN','DOWN':'UP','LEFT':'RIGHT','RIGHT':'LEFT'};
+        if (opp[newDir] !== direction) nextDir = newDir;
+    }
+
+    // ===== 启动 =====
+    window.addEventListener('load', () => {
+        initGame();
+        window.addEventListener('keydown', keyHandler);
+        document.getElementById('restartBtn').addEventListener('click', restartGame);
+        document.getElementById('aiBtn').addEventListener('click', startAI);
+        document.getElementById('resetStatsBtn').addEventListener('click', resetStats);
+        document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+    });
+    window.addEventListener('beforeunload', () => { if (interval) clearInterval(interval); });
+})();
+</script>
+</body>
+</html>
