@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>张晟维 · 个人主页</title>
+    <style>
+        /* 全局重置 & 字体 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, 'Helvetica Neue', sans-serif;
+            background: #f0f5fa;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 30px 20px;
+        }
+
+        /* 卡片容器 */
+        .card {
+            max-width: 820px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 36px;
+            box-shadow: 0 20px 50px rgba(0, 20, 40, 0.12);
+            padding: 44px 48px;
+            transition: all 0.2s;
+        }
+
+        /* 头像简写 —— 用首字母圆形代替 */
+        .avatar {
+            width: 96px;
+            height: 96px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #1a2a6c, #2d4373);
+            color: white;
+            font-size: 40px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 18px rgba(26, 42, 108, 0.25);
+            user-select: none;
+        }
+
+        /* 姓名 + 班级行 */
+        .name-title {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 12px 20px;
+            margin-bottom: 8px;
+        }
+
+        .name {
+            font-size: 34px;
+            font-weight: 700;
+            color: #0b1e3a;
+            letter-spacing: 1px;
+        }
+
+        .class-badge {
+            background: #eef3f9;
+            color: #1f3a6b;
+            font-weight: 500;
+            font-size: 16px;
+            padding: 4px 16px;
+            border-radius: 40px;
+            white-space: nowrap;
+        }
+
+        /* 分割装饰 */
+        .divider {
+            margin: 20px 0 24px 0;
+            height: 2px;
+            background: linear-gradient(90deg, #dce5ef, #a0b9d6, #dce5ef);
+            border-radius: 4px;
+        }
+
+        /* 通用区块 */
+        .section {
+            margin-bottom: 28px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f3a6b;
+            letter-spacing: 0.3px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: #e2eaf2;
+        }
+
+        /* 兴趣标签 */
+        .tag-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .tag {
+            background: #eef4fc;
+            color: #1f3a6b;
+            font-weight: 500;
+            font-size: 15px;
+            padding: 6px 22px;
+            border-radius: 40px;
+            border: 1px solid #d8e3f0;
+            transition: 0.15s;
+        }
+
+        .tag:hover {
+            background: #dce8f7;
+            border-color: #a0bbd9;
+        }
+
+        /* 联系方式列表 */
+        .contact-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: #f7faff;
+            padding: 16px 20px;
+            border-radius: 20px;
+            border: 1px solid #e7eef7;
+        }
+
+        .contact-item {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            font-size: 15px;
+            color: #1d2e4a;
+        }
+
+        .contact-item .emoji {
+            font-size: 20px;
+            width: 28px;
+            text-align: center;
+        }
+
+        .contact-item a {
+            color: #1a3c78;
+            text-decoration: none;
+            font-weight: 500;
+            border-bottom: 1px dotted transparent;
+            transition: 0.15s;
+        }
+
+        .contact-item a:hover {
+            border-bottom-color: #1a3c78;
+        }
+
+        /* 自我介绍 */
+        .bio {
+            background: #f7faff;
+            padding: 18px 22px;
+            border-radius: 20px;
+            border: 1px solid #e7eef7;
+            font-size: 16px;
+            line-height: 1.7;
+            color: #1a2d47;
+        }
+
+        /* 底部小水印 */
+        .footer-note {
+            margin-top: 10px;
+            font-size: 13px;
+            color: #8da1bb;
+            text-align: right;
+            border-top: 1px solid #eef3f9;
+            padding-top: 18px;
+            letter-spacing: 0.3px;
+        }
+
+        /* 响应式：手机窄屏适配 */
+        @media (max-width: 550px) {
+            .card {
+                padding: 30px 20px;
+            }
+            .name {
+                font-size: 27px;
+            }
+            .avatar {
+                width: 76px;
+                height: 76px;
+                font-size: 32px;
+            }
+            .contact-list {
+                padding: 14px 16px;
+            }
+            .bio {
+                padding: 14px 16px;
+                font-size: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+
+        <!-- 头像 -->
+        <div class="avatar">张</div>
+
+        <!-- 姓名 + 班级 -->
+        <div class="name-title">
+            <span class="name">张晟维</span>
+            <span class="class-badge">2026级 微电子科学与工程4班</span>
+        </div>
+
+        <!-- 分割线 -->
+        <div class="divider"></div>
+
+        <!-- 兴趣爱好 -->
+        <div class="section">
+            <div class="section-title">🎯 兴趣爱好</div>
+            <div class="tag-group">
+                <span class="tag">🏀 篮球</span>
+                <span class="tag">🎵 音乐</span>
+                <span class="tag">💻 编程</span>
+            </div>
+        </div>
+
+        <!-- 联系方式 -->
+        <div class="section">
+            <div class="section-title">📬 联系方式</div>
+            <div class="contact-list">
+                <div class="contact-item">
+                    <span class="emoji">📧</span>
+                    <span><a href="mailto:2120414611@qq.com">2120414611@qq.com</a></span>
+                </div>
+                <div class="contact-item">
+                    <span class="emoji">📱</span>
+                    <span>18565323668</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 自我介绍 -->
+        <div class="section">
+            <div class="section-title">🧑‍💻 关于我</div>
+            <div class="bio">
+                我叫张晟维，目前就读于<strong>2026级微电子科学与工程4班</strong>。<br />
+                我对<strong>前端开发</strong>和<strong>IC设计</strong>有浓厚兴趣，正在学习 C 语言和电路基础。<br />
+                希望通过参与集协，提升自己的技术能力和团队协作能力。
+            </div>
+        </div>
+
+        <!-- 底部 -->
+        <div class="footer-note">
+            ✦ 个人主页 · 持续更新 ✦
+        </div>
+
+    </div>
+
+</body>
+</html>
