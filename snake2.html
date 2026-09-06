@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>贪吃蛇 · AI智能演示</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a2634;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+        }
+
+        .game-container {
+            background: #263340;
+            padding: 30px 40px 35px;
+            border-radius: 36px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+            text-align: center;
+        }
+
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: #b7d0e8;
+            font-size: 18px;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+            padding: 0 6px 14px 6px;
+        }
+
+        .score-row span {
+            background: #1e2a36;
+            padding: 4px 20px;
+            border-radius: 60px;
+            color: #f0c674;
+            font-weight: 700;
+            font-size: 22px;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            background: #1e2a36;
+            border-radius: 18px;
+            box-shadow: inset 0 0 0 1px #3a4a5a, 0 12px 24px rgba(0,0,0,0.5);
+            width: 400px;
+            height: 400px;
+        }
+
+        .status-area {
+            margin-top: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        #statusMsg {
+            color: #b7d0e8;
+            font-size: 15px;
+            background: #1e2a36;
+            padding: 6px 22px;
+            border-radius: 60px;
+            min-width: 140px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            background: #3f5b78;
+            border: none;
+            color: white;
+            font-weight: 600;
+            font-size: 15px;
+            padding: 8px 24px;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 4px 0 #1f3140;
+        }
+
+        .btn:hover {
+            background: #537a9e;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 #1f3140;
+        }
+
+        .btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 0px 0 #1f3140;
+        }
+
+        .btn-ai {
+            background: #5a7a4a;
+            box-shadow: 0 4px 0 #2a3d1f;
+        }
+        .btn-ai:hover {
+            background: #6f965a;
+        }
+
+        .hint {
+            color: #6c859e;
+            font-size: 13px;
+            margin-top: 14px;
+            letter-spacing: 0.3px;
+        }
+
+        @media (max-width: 480px) {
+            .game-container {
+                padding: 18px 16px 22px;
+                border-radius: 24px;
+            }
+            canvas {
+                width: 300px;
+                height: 300px;
+            }
+            .score-row {
+                font-size: 15px;
+            }
+            .score-row span {
+                font-size: 18px;
+                padding: 2px 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="game-container">
+    <div class="score-row">
+        <span>🍎 <span id="scoreDisplay">0</span></span>
+        <span>🏆 <span id="highScoreDisplay">0</span></span>
+    </div>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div class="status-area">
+        <div id="statusMsg">▶ 按方向键开始</div>
+        <div class="btn-group">
+            <button class="btn" id="restartBtn">🔄 新一局</button>
+            <button class="btn btn-ai" id="aiBtn">🤖 AI演示</button>
+        </div>
+    </div>
+    <div class="hint">⬆⬇⬅➡ 手动 &nbsp;·&nbsp; 空格重开 &nbsp;·&nbsp; AI自动吃15个</div>
+</div>
+
+<script>
+    (function(){
+        // ----- 配置 -----
+        const GRID_SIZE = 20;
+        const CELL_SIZE = 20;
+        const TICK_INTERVAL = 130;
+        const AI_TARGET = 15;
+        const RANDOM_FACTOR = 0.1;   // 随机扰动概率
+
+        // ----- DOM -----
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreSpan = document.getElementById('scoreDisplay');
+        const highScoreSpan = document.getElementById('highScoreDisplay');
+        const statusMsg = document.getElementById('statusMsg');
+
+        // ----- 游戏变量 -----
+        let snake = [];
+        let direction = 'RIGHT';
+        let nextDirection = 'RIGHT';
+        let food = { x: 8, y: 10 };
+        let score = 0;
+        let highScore = 0;
+        let gameOver = false;
+        let winFlag = false;
+        let gameInterval = null;
+        let gameStarted = false;
+
+        // ----- AI 相关 -----
+        let aiMode = false;
+        let aiFoodCount = 0;
+
+        // ----- 初始化 -----
+        function initGame() {
+            snake = [
+                { x: 10, y: 10 },
+                { x: 9, y: 10 },
+                { x: 8, y: 10 }
+            ];
+            direction = 'RIGHT';
+            nextDirection = 'RIGHT';
+            score = 0;
+            gameOver = false;
+            winFlag = false;
+            gameStarted = false;
+            aiMode = false;
+            aiFoodCount = 0;
+            if (gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = null;
+            }
+            try {
+                const saved = localStorage.getItem('snake_high_score');
+                highScore = saved ? parseInt(saved, 10) || 0 : 0;
+            } catch (e) { highScore = 0; }
+            updateScoreDisplay();
+            generateFood();
+            statusMsg.textContent = '▶ 按方向键开始';
+            drawCanvas();
+        }
+
+        // ----- 食物生成（增加远距离偏好）-----
+        function generateFood() {
+            const totalCells = GRID_SIZE * GRID_SIZE;
+            if (snake.length >= totalCells) {
+                winFlag = true;
+                gameOver = true;
+                if (gameInterval) {
+                    clearInterval(gameInterval);
+                    gameInterval = null;
+                }
+                statusMsg.textContent = '🎉 完美通关！';
+                return;
+            }
+
+            const snakeSet = new Set(snake.map(s => `${s.x},${s.y}`));
+            const head = snake[0];
+            let candidates = [];
+            // 收集所有空格，并计算距离蛇头的曼哈顿距离，越远权重越高
+            for (let i = 0; i < GRID_SIZE; i++) {
+                for (let j = 0; j < GRID_SIZE; j++) {
+                    if (!snakeSet.has(`${i},${j}`)) {
+                        const dist = Math.abs(i - head.x) + Math.abs(j - head.y);
+                        candidates.push({ x: i, y: j, dist: dist });
+                    }
+                }
+            }
+            if (candidates.length === 0) {
+                winFlag = true;
+                gameOver = true;
+                if (gameInterval) {
+                    clearInterval(gameInterval);
+                    gameInterval = null;
+                }
+                statusMsg.textContent = '🎉 完美通关！';
+                return;
+            }
+            // 按距离降序排序（远的优先），然后随机抽取前30%中的任意一个
+            candidates.sort((a, b) => b.dist - a.dist);
+            const topCount = Math.max(1, Math.floor(candidates.length * 0.3));
+            const chosen = candidates[Math.floor(Math.random() * topCount)];
+            food = { x: chosen.x, y: chosen.y };
+        }
+
+        // ----- AI 决策：BFS 寻路 + 随机扰动 -----
+        function getAIDirection() {
+            const head = snake[0];
+            // 方向数组
+            const dirs = [
+                { dx: 1, dy: 0, dir: 'RIGHT' },
+                { dx: -1, dy: 0, dir: 'LEFT' },
+                { dx: 0, dy: -1, dir: 'UP' },
+                { dx: 0, dy: 1, dir: 'DOWN' }
+            ];
+
+            // 构建障碍集合：除蛇头外，蛇身全部为障碍（蛇尾会移动，但移动前蛇尾位置仍然不可达，因为蛇尾下一步会消失，但为了安全，我们允许走蛇尾，所以排除蛇尾）
+            const obstacleSet = new Set();
+            for (let i = 1; i < snake.length - 1; i++) { // 不包括蛇尾 (最后一个)
+                obstacleSet.add(`${snake[i].x},${snake[i].y}`);
+            }
+            // 如果蛇长度为1，则没有障碍
+
+            // BFS 寻找最短路径
+            const queue = [{ x: head.x, y: head.y, path: [] }];
+            const visited = new Set();
+            visited.add(`${head.x},${head.y}`);
+
+            let foundPath = null;
+            while (queue.length > 0) {
+                const cur = queue.shift();
+                if (cur.x === food.x && cur.y === food.y) {
+                    foundPath = cur.path;
+                    break;
+                }
+                for (let d of dirs) {
+                    const nx = cur.x + d.dx;
+                    const ny = cur.y + d.dy;
+                    const key = `${nx},${ny}`;
+                    if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) continue;
+                    if (visited.has(key)) continue;
+                    if (obstacleSet.has(key)) continue; // 撞蛇身（除蛇尾）
+                    visited.add(key);
+                    queue.push({ x: nx, y: ny, path: [...cur.path, d.dir] });
+                }
+            }
+
+            if (foundPath && foundPath.length > 0) {
+                // 有路径，返回第一步
+                const firstDir = foundPath[0];
+                // 随机扰动：以 RANDOM_FACTOR 概率随机换一个安全方向（但不是掉头）
+                if (Math.random() < RANDOM_FACTOR) {
+                    const safeDirs = dirs.filter(d => {
+                        const nx = head.x + d.dx;
+                        const ny = head.y + d.dy;
+                        if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) return false;
+                        // 不能掉头
+                        const opposite = { 'UP':'DOWN', 'DOWN':'UP', 'LEFT':'RIGHT', 'RIGHT':'LEFT' };
+                        if (d.dir === opposite[direction]) return false;
+                        // 不能撞蛇身（除蛇尾）
+                        for (let i = 1; i < snake.length - 1; i++) {
+                            if (snake[i].x === nx && snake[i].y === ny) return false;
+                        }
+                        return true;
+                    });
+                    if (safeDirs.length > 0) {
+                        const randomDir = safeDirs[Math.floor(Math.random() * safeDirs.length)];
+                        return randomDir.dir;
+                    }
+                }
+                return firstDir;
+            }
+
+            // BFS 无解，回退到贪心（但增加随机性）
+            const safeDirs = dirs.filter(d => {
+                const nx = head.x + d.dx;
+                const ny = head.y + d.dy;
+                if (nx < 0 || nx >= GRID_SIZE || ny < 0 || ny >= GRID_SIZE) return false;
+                const opposite = { 'UP':'DOWN', 'DOWN':'UP', 'LEFT':'RIGHT', 'RIGHT':'LEFT' };
+                if (d.dir === opposite[direction]) return false;
+                for (let i = 1; i < snake.length - 1; i++) {
+                    if (snake[i].x === nx && snake[i].y === ny) return false;
+                }
+                return true;
+            });
+
+            if (safeDirs.length === 0) {
+                // 死路，允许撞蛇尾或撞墙？但此时只能返回原方向或尝试任意方向
+                for (let d of dirs) {
+                    const nx = head.x + d.dx;
+                    const ny = head.y + d.dy;
+                    if (nx >= 0 && nx < GRID_SIZE && ny >= 0 && ny < GRID_SIZE) {
+                        return d.dir;
+                    }
+                }
+                return direction;
+            }
+
+            // 按距离食物远近排序，并随机选择前3个之一
+            safeDirs.sort((a, b) => {
+                const distA = Math.abs(head.x + a.dx - food.x) + Math.abs(head.y + a.dy - food.y);
+                const distB = Math.abs(head.x + b.dx - food.x) + Math.abs(head.y + b.dy - food.y);
+                return distA - distB;
+            });
+            const top = Math.min(3, safeDirs.length);
+            const chosen = safeDirs[Math.floor(Math.random() * top)];
+            return chosen.dir;
+        }
+
+        // ----- 移动逻辑 -----
+        function moveSnake() {
+            if (gameOver || !gameStarted) return;
+
+            if (aiMode) {
+                const aiDir = getAIDirection();
+                const opposite = { 'UP':'DOWN', 'DOWN':'UP', 'LEFT':'RIGHT', 'RIGHT':'LEFT' };
+                if (opposite[aiDir] !== direction) {
+                    nextDirection = aiDir;
+                }
+            }
+
+            const opposite = { 'UP':'DOWN', 'DOWN':'UP', 'LEFT':'RIGHT', 'RIGHT':'LEFT' };
+            if (nextDirection && opposite[nextDirection] !== direction) {
+                direction = nextDirection;
+            }
+
+            const head = snake[0];
+            let newHead = { ...head };
+            switch (direction) {
+                case 'RIGHT': newHead.x += 1; break;
+                case 'LEFT':  newHead.x -= 1; break;
+                case 'UP':    newHead.y -= 1; break;
+                case 'DOWN':  newHead.y += 1; break;
+                default: return;
+            }
+
+            const isEating = (newHead.x === food.x && newHead.y === food.y);
+            let newSnake = [newHead, ...snake];
+            if (!isEating) {
+                newSnake.pop();
+            }
+
+            // 碰撞检测
+            let collision = false;
+            if (newHead.x < 0 || newHead.x >= GRID_SIZE || newHead.y < 0 || newHead.y >= GRID_SIZE) {
+                collision = true;
+            }
+            if (!collision) {
+                for (let i = 1; i < newSnake.length; i++) {
+                    if (newSnake[i].x === newHead.x && newSnake[i].y === newHead.y) {
+                        collision = true;
+                        break;
+                    }
+                }
+            }
+
+            if (collision) {
+                gameOver = true;
+                if (gameInterval) {
+                    clearInterval(gameInterval);
+                    gameInterval = null;
+                }
+                statusMsg.textContent = '💀 游戏结束！按「新一局」重来';
+                if (aiMode) {
+                    aiMode = false;
+                    statusMsg.textContent = '💀 AI失败，点击「AI演示」重试';
+                }
+                drawCanvas();
+                updateScoreDisplay();
+                return;
+            }
+
+            snake = newSnake;
+
+            if (isEating) {
+                score++;
+                if (score > highScore) {
+                    highScore = score;
+                    try { localStorage.setItem('snake_high_score', String(highScore)); } catch (e) {}
+                }
+                updateScoreDisplay();
+
+                if (aiMode) {
+                    aiFoodCount++;
+                    statusMsg.textContent = `🤖 AI演示中 (${aiFoodCount}/${AI_TARGET})`;
+                    if (aiFoodCount >= AI_TARGET) {
+                        gameOver = true;
+                        if (gameInterval) {
+                            clearInterval(gameInterval);
+                            gameInterval = null;
+                        }
+                        statusMsg.textContent = `🎉 AI成功吃掉 ${AI_TARGET} 个食物！`;
+                        aiMode = false;
+                        drawCanvas();
+                        return;
+                    }
+                }
+                generateFood();
+                if (gameOver) {
+                    drawCanvas();
+                    return;
+                }
+            }
+
+            drawCanvas();
+            updateScoreDisplay();
+        }
+
+        // ----- 绘制（同前，略）-----
+        function drawCanvas() {
+            ctx.clearRect(0, 0, 400, 400);
+            ctx.strokeStyle = '#2b3b4a';
+            ctx.lineWidth = 0.6;
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * CELL_SIZE, 0);
+                ctx.lineTo(i * CELL_SIZE, 400);
+                ctx.stroke();
+                ctx.moveTo(0, i * CELL_SIZE);
+                ctx.lineTo(400, i * CELL_SIZE);
+                ctx.stroke();
+            }
+            ctx.shadowColor = '#f0c674';
+            ctx.shadowBlur = 10;
+            ctx.fillStyle = '#f2594b';
+            ctx.beginPath();
+            ctx.arc(food.x * CELL_SIZE + CELL_SIZE/2, food.y * CELL_SIZE + CELL_SIZE/2, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            snake.forEach((seg, idx) => {
+                const isHead = (idx === 0);
+                const x = seg.x * CELL_SIZE, y = seg.y * CELL_SIZE;
+                ctx.fillStyle = isHead ? '#6fcf97' : '#27ae60';
+                ctx.shadowColor = isHead ? '#6fcf97' : '#1e8449';
+                ctx.shadowBlur = isHead ? 12 : 6;
+                const radius = 4;
+                ctx.beginPath();
+                ctx.roundRect(x + 1, y + 1, CELL_SIZE - 2, CELL_SIZE - 2, radius);
+                ctx.fill();
+                if (isHead) {
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#0e2a1a';
+                    let ex1, ey1, ex2, ey2;
+                    switch (direction) {
+                        case 'RIGHT': ex1=x+12, ey1=y+4, ex2=x+12, ey2=y+12; break;
+                        case 'LEFT':  ex1=x+4, ey1=y+4, ex2=x+4, ey2=y+12; break;
+                        case 'UP':    ex1=x+4, ey1=y+4, ex2=x+12, ey2=y+4; break;
+                        case 'DOWN':  ex1=x+4, ey1=y+12, ex2=x+12, ey2=y+12; break;
+                        default: ex1=x+12, ey1=y+4, ex2=x+12, ey2=y+12;
+                    }
+                    ctx.beginPath();
+                    ctx.arc(ex1, ey1, 2.5, 0, 2*Math.PI);
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(ex2, ey2, 2.5, 0, 2*Math.PI);
+                    ctx.fill();
+                }
+            });
+            ctx.shadowBlur = 0;
+
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                ctx.fillRect(0, 0, 400, 400);
+                ctx.fillStyle = '#f2f7fb';
+                ctx.font = 'bold 26px "Segoe UI", system-ui, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                let msg = winFlag ? '🏆 完美通关' : '💀 游戏结束';
+                ctx.fillText(msg, 200, 200);
+            }
+        }
+
+        CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+            if (r > w/2) r = w/2;
+            if (r > h/2) r = h/2;
+            this.moveTo(x + r, y);
+            this.lineTo(x + w - r, y);
+            this.quadraticCurveTo(x + w, y, x + w, y + r);
+            this.lineTo(x + w, y + h - r);
+            this.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            this.lineTo(x + r, y + h);
+            this.quadraticCurveTo(x, y + h, x, y + h - r);
+            this.lineTo(x, y + r);
+            this.quadraticCurveTo(x, y, x + r, y);
+            this.closePath();
+            return this;
+        };
+
+        function updateScoreDisplay() {
+            scoreSpan.textContent = score;
+            highScoreSpan.textContent = highScore;
+        }
+
+        function startGameLoop() {
+            if (gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = null;
+            }
+            if (!gameOver && gameStarted) {
+                gameInterval = setInterval(() => {
+                    moveSnake();
+                }, TICK_INTERVAL);
+            }
+        }
+
+        function handleKeydown(e) {
+            const key = e.key;
+            if (key.startsWith('Arrow') || key === ' ' || key === 'Spacebar') {
+                e.preventDefault();
+            }
+            if (key === ' ' || key === 'Spacebar') {
+                restartGame();
+                return;
+            }
+            if (aiMode) return;
+            let newDir = null;
+            if (key === 'ArrowUp') newDir = 'UP';
+            else if (key === 'ArrowDown') newDir = 'DOWN';
+            else if (key === 'ArrowLeft') newDir = 'LEFT';
+            else if (key === 'ArrowRight') newDir = 'RIGHT';
+            else return;
+
+            if (!gameStarted && !gameOver) {
+                gameStarted = true;
+                statusMsg.textContent = '▶ 游戏中...';
+                direction = newDir;
+                nextDirection = newDir;
+                startGameLoop();
+                return;
+            }
+            if (gameOver) return;
+            const opposite = { 'UP':'DOWN', 'DOWN':'UP', 'LEFT':'RIGHT', 'RIGHT':'LEFT' };
+            if (opposite[newDir] !== direction) {
+                nextDirection = newDir;
+            }
+        }
+
+        function restartGame() {
+            if (gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = null;
+            }
+            initGame();
+            aiMode = false;
+        }
+
+        function startAI() {
+            if (gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = null;
+            }
+            initGame();
+            aiMode = true;
+            aiFoodCount = 0;
+            gameStarted = true;
+            statusMsg.textContent = `🤖 AI演示中 (0/${AI_TARGET})`;
+            startGameLoop();
+        }
+
+        window.addEventListener('load', () => {
+            initGame();
+            window.addEventListener('keydown', handleKeydown);
+            document.getElementById('restartBtn').addEventListener('click', restartGame);
+            document.getElementById('aiBtn').addEventListener('click', startAI);
+        });
+
+        window.addEventListener('beforeunload', function() {
+            if (gameInterval) {
+                clearInterval(gameInterval);
+                gameInterval = null;
+            }
+        });
+    })();
+</script>
+</body>
+</html>
